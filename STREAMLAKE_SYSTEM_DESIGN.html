@@ -1,0 +1,1650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>StreamLake — System Design &amp; Technical Documentation</title>
+<style>
+  /* ── Base ── */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --blue:    #1e3a5f;
+    --blue2:   #2e5282;
+    --accent:  #0078d4;
+    --teal:    #00b4d8;
+    --green:   #22c55e;
+    --red:     #ef4444;
+    --orange:  #f59e0b;
+    --purple:  #7c3aed;
+    --gray50:  #f8fafc;
+    --gray100: #f1f5f9;
+    --gray200: #e2e8f0;
+    --gray700: #334155;
+    --gray900: #0f172a;
+    --code-bg: #1e293b;
+  }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; color: var(--gray700); line-height: 1.7; background: #fff; }
+
+  /* ── Cover ── */
+  .cover {
+    background: linear-gradient(135deg, var(--blue) 0%, var(--blue2) 50%, #1a4a7a 100%);
+    color: #fff; padding: 72px 60px 60px; page-break-after: always;
+  }
+  .cover-badge { display:inline-block; background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.3);
+    border-radius:20px; padding:4px 16px; font-size:12px; letter-spacing:.08em; text-transform:uppercase; margin-bottom:24px; }
+  .cover h1 { font-size: 52px; font-weight: 800; letter-spacing: -1px; line-height: 1.1; }
+  .cover h1 span { color: var(--teal); }
+  .cover .subtitle { font-size: 20px; opacity: .8; margin-top: 16px; max-width: 620px; }
+  .cover-meta { margin-top: 48px; display: flex; gap: 40px; flex-wrap: wrap; }
+  .cover-meta-item { }
+  .cover-meta-item .label { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; opacity: .6; }
+  .cover-meta-item .value { font-size: 16px; font-weight: 600; }
+  .cover-tags { margin-top: 36px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .cover-tags span { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.2);
+    border-radius: 4px; padding: 3px 10px; font-size: 12px; }
+
+  /* ── Layout ── */
+  .container { max-width: 1100px; margin: 0 auto; padding: 0 40px; }
+  section { padding: 56px 0 40px; }
+  section + section { border-top: 1px solid var(--gray200); }
+
+  /* ── Typography ── */
+  h2 { font-size: 30px; font-weight: 700; color: var(--blue); margin-bottom: 8px; }
+  h2 .section-num { color: var(--accent); margin-right: 8px; font-size: 22px; }
+  h3 { font-size: 20px; font-weight: 700; color: var(--gray900); margin: 32px 0 12px; }
+  h4 { font-size: 15px; font-weight: 700; color: var(--blue2); margin: 20px 0 8px; text-transform: uppercase; letter-spacing: .06em; }
+  p  { margin-bottom: 14px; }
+  ul, ol { padding-left: 24px; margin-bottom: 14px; }
+  li { margin-bottom: 6px; }
+  strong { color: var(--gray900); }
+  a { color: var(--accent); }
+  .lead { font-size: 17px; color: #475569; margin-bottom: 28px; }
+  .section-divider { border: none; border-top: 1px solid var(--gray200); margin: 24px 0; }
+
+  /* ── TOC ── */
+  .toc { background: var(--gray50); border: 1px solid var(--gray200); border-radius: 10px; padding: 28px 32px; }
+  .toc h3 { margin-top: 0; color: var(--blue); }
+  .toc ol { columns: 2; column-gap: 40px; }
+  .toc li { margin-bottom: 8px; font-size: 14px; break-inside: avoid; }
+  .toc a { text-decoration: none; color: var(--gray700); }
+  .toc a:hover { color: var(--accent); }
+
+  /* ── Cards ── */
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; margin: 24px 0; }
+  .card { border: 1px solid var(--gray200); border-radius: 10px; padding: 20px 22px; background: #fff; }
+  .card-icon { font-size: 28px; margin-bottom: 10px; }
+  .card h4 { margin: 0 0 8px; text-transform: none; letter-spacing: 0; font-size: 16px; color: var(--gray900); }
+  .card p { font-size: 13.5px; color: #64748b; margin: 0; }
+  .card.accent { border-left: 4px solid var(--accent); }
+  .card.green  { border-left: 4px solid var(--green); }
+  .card.orange { border-left: 4px solid var(--orange); }
+  .card.purple { border-left: 4px solid var(--purple); }
+  .card.red    { border-left: 4px solid var(--red); }
+  .card.teal   { border-left: 4px solid var(--teal); }
+
+  /* ── Code blocks ── */
+  pre { background: var(--code-bg); color: #e2e8f0; border-radius: 8px; padding: 20px 24px;
+    overflow-x: auto; font-size: 13px; line-height: 1.6; margin: 16px 0; }
+  code { font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace; }
+  .inline-code { background: var(--gray100); padding: 2px 6px; border-radius: 4px; font-size: 13px;
+    color: var(--blue2); font-family: 'Consolas', monospace; }
+  .code-label { background: var(--blue); color: #fff; font-size: 11px; padding: 4px 12px;
+    border-radius: 8px 8px 0 0; display: inline-block; font-family: monospace; }
+
+  /* ── Tables ── */
+  .tbl-wrap { overflow-x: auto; margin: 16px 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { background: var(--blue); color: #fff; padding: 10px 14px; text-align: left; font-weight: 600; }
+  td { padding: 9px 14px; border-bottom: 1px solid var(--gray200); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--gray50); }
+
+  /* ── Badges / pills ── */
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 99px; font-size: 11px;
+    font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+  .badge-java   { background:#fef3c7; color:#92400e; }
+  .badge-go     { background:#d1fae5; color:#065f46; }
+  .badge-kafka  { background:#ede9fe; color:#5b21b6; }
+  .badge-iceberg{ background:#fce7f3; color:#9d174d; }
+  .badge-docker { background:#dbeafe; color:#1e40af; }
+  .badge-aws    { background:#fff7ed; color:#9a3412; }
+  .badge-crit   { background:#fee2e2; color:#991b1b; }
+  .badge-high   { background:#ffedd5; color:#9a3412; }
+
+  /* ── Callout boxes ── */
+  .callout { border-radius: 8px; padding: 16px 20px; margin: 20px 0; font-size: 14px; }
+  .callout-blue   { background:#eff6ff; border-left:4px solid var(--accent); }
+  .callout-green  { background:#f0fdf4; border-left:4px solid var(--green); }
+  .callout-orange { background:#fffbeb; border-left:4px solid var(--orange); }
+  .callout-red    { background:#fef2f2; border-left:4px solid var(--red); }
+  .callout .callout-title { font-weight:700; margin-bottom:6px; }
+  .callout-blue   .callout-title { color:var(--accent); }
+  .callout-green  .callout-title { color:#166534; }
+  .callout-orange .callout-title { color:#92400e; }
+  .callout-red    .callout-title { color:#991b1b; }
+
+  /* ── Architecture diagram (SVG-based) ── */
+  .arch-diagram { width:100%; overflow-x:auto; margin: 24px 0; }
+  .arch-diagram svg { min-width: 700px; }
+
+  /* ── Flow steps ── */
+  .flow-steps { display: flex; flex-direction: column; gap: 0; margin: 20px 0; }
+  .flow-step { display: flex; gap: 16px; align-items: flex-start; }
+  .flow-step-num { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: #fff;
+    font-weight: 700; font-size: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .flow-step-line { width: 2px; background: var(--gray200); margin: 0 auto; height: 24px; }
+  .flow-step-body { flex: 1; padding-bottom: 20px; }
+  .flow-step-body h5 { font-size: 15px; font-weight: 700; color: var(--gray900); margin-bottom: 4px; }
+  .flow-step-body p  { font-size: 13.5px; color: #64748b; margin: 0; }
+
+  /* ── AWS diagram boxes ── */
+  .aws-layer { background: var(--gray50); border: 1px solid var(--gray200); border-radius: 10px; padding: 20px; margin: 12px 0; }
+  .aws-layer-title { font-weight: 700; color: var(--orange); font-size: 13px; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 12px; }
+  .aws-service-row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .aws-svc { background: #fff; border: 1px solid var(--gray200); border-radius: 8px; padding: 10px 16px;
+    font-size: 13px; font-weight: 600; color: var(--gray900); display: flex; align-items: center; gap: 8px; }
+  .aws-svc .svc-icon { font-size: 18px; }
+
+  /* ── Print ── */
+  @media print {
+    .cover { page-break-after: always; }
+    section { page-break-inside: avoid; }
+    pre { white-space: pre-wrap; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     COVER PAGE
+═══════════════════════════════════════════════════════════════════ -->
+<div class="cover">
+  <div class="cover-badge">System Design Document</div>
+  <h1>Stream<span>Lake</span></h1>
+  <p class="subtitle">
+    Real-time Kafka → Apache Iceberg materialization platform —
+    a production-grade reference implementation of Confluent Tableflow architecture
+  </p>
+  <div class="cover-meta">
+    <div class="cover-meta-item">
+      <div class="label">Architecture</div>
+      <div class="value">Microservices (Java + Go)</div>
+    </div>
+    <div class="cover-meta-item">
+      <div class="label">Data Plane</div>
+      <div class="value">Java 21 · Kafka 3.7 · Iceberg 1.5</div>
+    </div>
+    <div class="cover-meta-item">
+      <div class="label">Control Plane</div>
+      <div class="value">Go 1.22 · chi · SQLite WAL</div>
+    </div>
+    <div class="cover-meta-item">
+      <div class="label">Ecosystem</div>
+      <div class="value">Confluent Platform 7.6</div>
+    </div>
+  </div>
+  <div class="cover-tags">
+    <span>Apache Kafka</span><span>Apache Iceberg</span><span>Kafka Streams</span>
+    <span>Schema Registry</span><span>Kafka Connect</span><span>ksqlDB</span>
+    <span>REST Proxy</span><span>Prometheus</span><span>Docker Compose</span>
+    <span>AWS MSK / S3 / Glue</span>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- ══════════════════════════════════════════════════════════════════
+     TABLE OF CONTENTS
+═══════════════════════════════════════════════════════════════════ -->
+<section id="toc">
+  <h2>Contents</h2>
+  <div class="toc">
+    <ol>
+      <li><a href="#overview">Project Overview &amp; Goals</a></li>
+      <li><a href="#arch">High-Level Architecture</a></li>
+      <li><a href="#techstack">Technology Stack — What, How &amp; Why</a></li>
+      <li><a href="#dataplane">Java Data Plane — Deep Dive</a></li>
+      <li><a href="#controlplane">Go Control Plane — Deep Dive</a></li>
+      <li><a href="#confluent">Confluent Ecosystem Components</a></li>
+      <li><a href="#dataflow">End-to-End Data Flow</a></li>
+      <li><a href="#distributed">Distributed Systems Guarantees</a></li>
+      <li><a href="#api">API Reference</a></li>
+      <li><a href="#local">Local Development Guide</a></li>
+      <li><a href="#aws">AWS Production Deployment</a></li>
+      <li><a href="#monitoring">Observability &amp; Monitoring</a></li>
+    </ol>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     1 — OVERVIEW
+═══════════════════════════════════════════════════════════════════ -->
+<section id="overview">
+  <h2><span class="section-num">1</span> Project Overview &amp; Goals</h2>
+  <p class="lead">
+    StreamLake is a working reference implementation of Confluent's
+    <strong>Tableflow</strong> product — the capability that continuously materializes
+    Apache Kafka topics into Apache Iceberg tables so that query engines (Spark, Flink,
+    Trino, DuckDB) can read streaming data using standard SQL.
+  </p>
+
+  <div class="card-grid">
+    <div class="card accent">
+      <div class="card-icon">🎯</div>
+      <h4>Core Mission</h4>
+      <p>Bridge the gap between real-time Kafka streams and the analytical lakehouse format (Iceberg/Parquet) — the same problem Confluent Cloud solves at petabyte scale.</p>
+    </div>
+    <div class="card green">
+      <div class="card-icon">⚡</div>
+      <h4>Production Patterns</h4>
+      <p>Every component implements real distributed systems guarantees: at-least-once delivery, idempotent creates, crash recovery, split-brain reconciliation, and supervisor restart.</p>
+    </div>
+    <div class="card orange">
+      <div class="card-icon">🏗️</div>
+      <h4>Reference Architecture</h4>
+      <p>Mirrors the Go+Java split Confluent actually uses: Go for the fast, low-memory control plane API; Java for the Kafka+Iceberg data processing path.</p>
+    </div>
+    <div class="card purple">
+      <div class="card-icon">🔬</div>
+      <h4>Full Confluent Ecosystem</h4>
+      <p>Kafka (KRaft, no ZooKeeper), Schema Registry, Kafka Connect, ksqlDB, REST Proxy — the complete Confluent stack running locally via Docker Compose.</p>
+    </div>
+  </div>
+
+  <h3>What problem does it solve?</h3>
+  <p>
+    Kafka is a <strong>write-optimised log</strong> — perfect for real-time event ingestion, but
+    not queryable by SQL engines without a connector. Iceberg is a <strong>read-optimised
+    open table format</strong> with ACID transactions, schema evolution, time-travel, and
+    partition pruning — but has no built-in streaming ingest. StreamLake is the bridge:
+    it reads from Kafka, buffers micro-batches, writes atomic Iceberg snapshots, and exposes
+    a REST API for lifecycle management.
+  </p>
+
+  <div class="callout callout-blue">
+    <div class="callout-title">Why this matters for Confluent/IBM Tableflow interviews</div>
+    Every design decision in this codebase maps directly to production Confluent Tableflow:
+    HadoopCatalog → Glue/Unity Catalog swap, at-least-once with Iceberg dedup via kafka_offset,
+    bounded thread pools for worker isolation, split-brain reconciliation between control and
+    data plane, and Kafka Connect as the alternative sink connector pathway.
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     2 — ARCHITECTURE
+═══════════════════════════════════════════════════════════════════ -->
+<section id="arch">
+  <h2><span class="section-num">2</span> High-Level Architecture</h2>
+  <p class="lead">StreamLake is a three-tier system: a Confluent Kafka backbone, a Java data plane
+    that does the heavy I/O work, and a Go control plane that manages lifecycle.</p>
+
+  <div class="arch-diagram">
+    <svg viewBox="0 0 900 620" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, system-ui, sans-serif">
+
+      <!-- Background zones -->
+      <rect x="10" y="10" width="880" height="80" rx="8" fill="#f0f9ff" stroke="#bae6fd" stroke-width="1.5"/>
+      <rect x="10" y="110" width="880" height="130" rx="8" fill="#fef9ee" stroke="#fde68a" stroke-width="1.5"/>
+      <rect x="10" y="260" width="430" height="170" rx="8" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="1.5"/>
+      <rect x="460" y="260" width="430" height="170" rx="8" fill="#fdf4ff" stroke="#e9d5ff" stroke-width="1.5"/>
+      <rect x="10" y="450" width="880" height="150" rx="8" fill="#fdf2f8" stroke="#fbcfe8" stroke-width="1.5"/>
+
+      <!-- Zone labels -->
+      <text x="24" y="30" font-size="11" fill="#0369a1" font-weight="700" letter-spacing="0.08em" text-transform="uppercase">PRODUCERS</text>
+      <text x="24" y="130" font-size="11" fill="#92400e" font-weight="700" letter-spacing="0.08em">CONFLUENT KAFKA BACKBONE (Docker)</text>
+      <text x="24" y="280" font-size="11" fill="#166534" font-weight="700" letter-spacing="0.08em">JAVA DATA PLANE  :9090</text>
+      <text x="474" y="280" font-size="11" fill="#6b21a8" font-weight="700" letter-spacing="0.08em">GO CONTROL PLANE  :8000</text>
+      <text x="24" y="470" font-size="11" fill="#9d174d" font-weight="700" letter-spacing="0.08em">STORAGE LAYER</text>
+
+      <!-- PRODUCER BOX -->
+      <rect x="30" y="35" width="160" height="48" rx="6" fill="#fff" stroke="#7dd3fc" stroke-width="1.5"/>
+      <text x="110" y="55" text-anchor="middle" font-size="12" font-weight="700" fill="#1e3a5f">OrderProducer (Java)</text>
+      <text x="110" y="72" text-anchor="middle" font-size="10.5" fill="#475569">idempotent, snappy, acks=all</text>
+
+      <rect x="220" y="35" width="160" height="48" rx="6" fill="#fff" stroke="#7dd3fc" stroke-width="1.5"/>
+      <text x="300" y="55" text-anchor="middle" font-size="12" font-weight="700" fill="#1e3a5f">External App / REST Proxy</text>
+      <text x="300" y="72" text-anchor="middle" font-size="10.5" fill="#475569">JSON or Avro events</text>
+
+      <!-- Arrows: producers → broker -->
+      <line x1="110" y1="83" x2="110" y2="145" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arr)"/>
+      <line x1="300" y1="83" x2="300" y2="145" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arr)"/>
+
+      <!-- KAFKA BROKER -->
+      <rect x="30" y="145" width="180" height="80" rx="6" fill="#fff" stroke="#fbbf24" stroke-width="2"/>
+      <text x="120" y="168" text-anchor="middle" font-size="13" font-weight="700" fill="#1e3a5f">Kafka Broker</text>
+      <text x="120" y="185" text-anchor="middle" font-size="11" fill="#6b7280">(KRaft, no ZooKeeper)</text>
+      <text x="120" y="200" text-anchor="middle" font-size="11" fill="#6b7280">:9092  |  7.6.0</text>
+      <text x="120" y="216" text-anchor="middle" font-size="10" fill="#0891b2">topics: orders, orders-placed</text>
+
+      <!-- SCHEMA REGISTRY -->
+      <rect x="240" y="145" width="140" height="80" rx="6" fill="#fff" stroke="#fbbf24" stroke-width="2"/>
+      <text x="310" y="168" text-anchor="middle" font-size="13" font-weight="700" fill="#1e3a5f">Schema Registry</text>
+      <text x="310" y="186" text-anchor="middle" font-size="11" fill="#6b7280">Avro/JSON/Proto</text>
+      <text x="310" y="202" text-anchor="middle" font-size="11" fill="#6b7280">:8081</text>
+
+      <!-- CONNECT -->
+      <rect x="410" y="145" width="120" height="80" rx="6" fill="#fff" stroke="#fbbf24" stroke-width="2"/>
+      <text x="470" y="168" text-anchor="middle" font-size="12" font-weight="700" fill="#1e3a5f">Kafka Connect</text>
+      <text x="470" y="186" text-anchor="middle" font-size="11" fill="#6b7280">Source &amp; Sink</text>
+      <text x="470" y="202" text-anchor="middle" font-size="11" fill="#6b7280">:8083</text>
+
+      <!-- ksqlDB -->
+      <rect x="555" y="145" width="110" height="80" rx="6" fill="#fff" stroke="#fbbf24" stroke-width="2"/>
+      <text x="610" y="168" text-anchor="middle" font-size="12" font-weight="700" fill="#1e3a5f">ksqlDB</text>
+      <text x="610" y="186" text-anchor="middle" font-size="11" fill="#6b7280">SQL on Kafka</text>
+      <text x="610" y="202" text-anchor="middle" font-size="11" fill="#6b7280">:8088</text>
+
+      <!-- REST Proxy -->
+      <rect x="690" y="145" width="110" height="80" rx="6" fill="#fff" stroke="#fbbf24" stroke-width="2"/>
+      <text x="745" y="168" text-anchor="middle" font-size="12" font-weight="700" fill="#1e3a5f">REST Proxy</text>
+      <text x="745" y="186" text-anchor="middle" font-size="11" fill="#6b7280">HTTP → Kafka</text>
+      <text x="745" y="202" text-anchor="middle" font-size="11" fill="#6b7280">:8082</text>
+
+      <!-- DATA PLANE components -->
+      <rect x="28" y="292" width="200" height="70" rx="6" fill="#fff" stroke="#86efac" stroke-width="1.5"/>
+      <text x="128" y="314" text-anchor="middle" font-size="12" font-weight="700" fill="#1e3a5f">DataPlaneServer</text>
+      <text x="128" y="331" text-anchor="middle" font-size="11" fill="#6b7280">POST/GET/DELETE /workers</text>
+      <text x="128" y="347" text-anchor="middle" font-size="10" fill="#0891b2">ThreadPool: max(4, cores×2)</text>
+
+      <rect x="248" y="292" width="180" height="70" rx="6" fill="#fff" stroke="#86efac" stroke-width="1.5"/>
+      <text x="338" y="314" text-anchor="middle" font-size="12" font-weight="700" fill="#1e3a5f">WorkerRegistry</text>
+      <text x="338" y="331" text-anchor="middle" font-size="11" fill="#6b7280">ConcurrentHashMap</text>
+      <text x="338" y="347" text-anchor="middle" font-size="10" fill="#0891b2">Watchdog: 10s supervisor</text>
+
+      <!-- Arrow: DataPlaneServer → WorkerRegistry -->
+      <line x1="228" y1="327" x2="248" y2="327" stroke="#86efac" stroke-width="2" marker-end="url(#arr2)"/>
+
+      <!-- CONTROL PLANE components -->
+      <rect x="478" y="292" width="180" height="70" rx="6" fill="#fff" stroke="#d8b4fe" stroke-width="1.5"/>
+      <text x="568" y="314" text-anchor="middle" font-size="12" font-weight="700" fill="#1e3a5f">Handler (chi)</text>
+      <text x="568" y="331" text-anchor="middle" font-size="11" fill="#6b7280">POST/GET/DELETE /api/v1/tables</text>
+      <text x="568" y="347" text-anchor="middle" font-size="10" fill="#0891b2">idempotent · retry · fan-out</text>
+
+      <rect x="680" y="292" width="180" height="70" rx="6" fill="#fff" stroke="#d8b4fe" stroke-width="1.5"/>
+      <text x="770" y="314" text-anchor="middle" font-size="12" font-weight="700" fill="#1e3a5f">SQLite Store (WAL)</text>
+      <text x="770" y="331" text-anchor="middle" font-size="11" fill="#6b7280">UNIQUE(topic) · state machine</text>
+      <text x="770" y="347" text-anchor="middle" font-size="10" fill="#0891b2">reconcile every 30s</text>
+
+      <!-- Arrow: Handler → SQLite -->
+      <line x1="660" y1="327" x2="680" y2="327" stroke="#d8b4fe" stroke-width="2" marker-end="url(#arr3)"/>
+
+      <!-- STORAGE boxes -->
+      <rect x="28" y="478" width="200" height="108" rx="6" fill="#fff" stroke="#f9a8d4" stroke-width="1.5"/>
+      <text x="128" y="500" text-anchor="middle" font-size="13" font-weight="700" fill="#1e3a5f">Apache Iceberg</text>
+      <text x="128" y="517" text-anchor="middle" font-size="11" fill="#6b7280">HadoopCatalog → local FS</text>
+      <text x="128" y="533" text-anchor="middle" font-size="11" fill="#6b7280">Parquet + snapshots</text>
+      <text x="128" y="549" text-anchor="middle" font-size="10" fill="#7c3aed">warehouse/streamlake/&lt;table&gt;/</text>
+      <text x="128" y="565" text-anchor="middle" font-size="10" fill="#7c3aed">metadata.json (atomic commit)</text>
+
+      <rect x="260" y="478" width="200" height="108" rx="6" fill="#fff" stroke="#f9a8d4" stroke-width="1.5"/>
+      <text x="360" y="500" text-anchor="middle" font-size="13" font-weight="700" fill="#1e3a5f">Kafka Topics</text>
+      <text x="360" y="517" text-anchor="middle" font-size="11" fill="#6b7280">orders (3 partitions)</text>
+      <text x="360" y="533" text-anchor="middle" font-size="11" fill="#6b7280">orders-placed</text>
+      <text x="360" y="549" text-anchor="middle" font-size="11" fill="#6b7280">product-revenue-metrics</text>
+      <text x="360" y="565" text-anchor="middle" font-size="10" fill="#7c3aed">retention: 7 days · KRaft</text>
+
+      <rect x="490" y="478" width="190" height="108" rx="6" fill="#fff" stroke="#f9a8d4" stroke-width="1.5"/>
+      <text x="585" y="500" text-anchor="middle" font-size="13" font-weight="700" fill="#1e3a5f">SQLite (streamlake.db)</text>
+      <text x="585" y="517" text-anchor="middle" font-size="11" fill="#6b7280">Worker state &amp; metadata</text>
+      <text x="585" y="533" text-anchor="middle" font-size="11" fill="#6b7280">WAL mode · busy_timeout=5s</text>
+      <text x="585" y="549" text-anchor="middle" font-size="10" fill="#7c3aed">status: starting→running→stopped</text>
+
+      <rect x="700" y="478" width="185" height="108" rx="6" fill="#fff" stroke="#f9a8d4" stroke-width="1.5"/>
+      <text x="792" y="500" text-anchor="middle" font-size="13" font-weight="700" fill="#1e3a5f">Prometheus Metrics</text>
+      <text x="792" y="517" text-anchor="middle" font-size="11" fill="#6b7280">Data plane: :8001/metrics</text>
+      <text x="792" y="533" text-anchor="middle" font-size="11" fill="#6b7280">Control plane: :8000/metrics</text>
+      <text x="792" y="549" text-anchor="middle" font-size="10" fill="#7c3aed">JVM GC, heap, thread counts</text>
+
+      <!-- Arrows: Kafka → TableWorker (data plane) -->
+      <line x1="120" y1="225" x2="120" y2="292" stroke="#86efac" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#arr2)"/>
+      <text x="125" y="265" font-size="10" fill="#166534">poll()</text>
+
+      <!-- Arrow: TableWorker → Iceberg -->
+      <line x1="180" y1="362" x2="100" y2="478" stroke="#f9a8d4" stroke-width="2" marker-end="url(#arr4)"/>
+      <text x="115" y="425" font-size="10" fill="#9d174d">append(batch)</text>
+
+      <!-- Arrow: Control Plane → Data Plane HTTP -->
+      <line x1="478" y1="320" x2="430" y2="320" stroke="#475569" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr)"/>
+      <text x="438" y="313" font-size="9" fill="#334155">POST /workers</text>
+
+      <!-- Arrow markers -->
+      <defs>
+        <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#94a3b8"/>
+        </marker>
+        <marker id="arr2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#86efac"/>
+        </marker>
+        <marker id="arr3" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#d8b4fe"/>
+        </marker>
+        <marker id="arr4" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#f9a8d4"/>
+        </marker>
+      </defs>
+    </svg>
+  </div>
+
+  <h3>Two-Plane Architecture</h3>
+  <p>StreamLake uses the same Go/Java split as Confluent production:</p>
+  <div class="tbl-wrap">
+    <table>
+      <tr><th>Plane</th><th>Language</th><th>Responsibility</th><th>Why that language?</th></tr>
+      <tr>
+        <td><strong>Control Plane</strong></td>
+        <td><span class="badge badge-go">Go</span></td>
+        <td>REST API for users; SQLite state; worker lifecycle commands; reconciliation</td>
+        <td>~10 MB RAM, sub-ms startup, goroutine model ideal for lifecycle fan-out</td>
+      </tr>
+      <tr>
+        <td><strong>Data Plane</strong></td>
+        <td><span class="badge badge-java">Java</span></td>
+        <td>Kafka consumer; Iceberg writes; Parquet encoding; Kafka Streams pipelines</td>
+        <td>Kafka client, Iceberg, Parquet all have mature Java libraries; JVM handles GC for large batch objects</td>
+      </tr>
+    </table>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     3 — TECH STACK
+═══════════════════════════════════════════════════════════════════ -->
+<section id="techstack">
+  <h2><span class="section-num">3</span> Technology Stack — What, How &amp; Why</h2>
+  <p class="lead">Every technology choice is deliberate. Here's the reasoning behind each.</p>
+
+  <!-- KAFKA -->
+  <h3>Apache Kafka 3.7 (KRaft mode) <span class="badge badge-kafka">Core Backbone</span></h3>
+  <div class="card-grid">
+    <div class="card accent">
+      <h4>WHAT it is</h4>
+      <p>Kafka is a distributed, append-only commit log. Producers write records to ordered
+        partitions. Consumers read at their own pace using offsets. Records are retained
+        for a configurable time (7 days here), not deleted on consumption.</p>
+    </div>
+    <div class="card green">
+      <h4>HOW we use it</h4>
+      <p>The <code>orders</code> topic (3 partitions) receives e-commerce events. Each
+        TableWorker subscribes to one topic and polls in a loop. Offsets are committed
+        <em>after</em> the Iceberg write to guarantee at-least-once delivery.</p>
+    </div>
+    <div class="card orange">
+      <h4>WHY Kafka specifically</h4>
+      <p>Confluent Tableflow is built on Kafka. Understanding Kafka's partition model,
+        consumer groups, offset management, and rebalance protocol is core to the
+        Tableflow engineering role.</p>
+    </div>
+  </div>
+  <div class="callout callout-blue">
+    <div class="callout-title">KRaft (no ZooKeeper) — why it matters</div>
+    Since Kafka 3.3, the Controller Quorum runs inside the broker itself using the Raft
+    consensus protocol. We set <span class="inline-code">KAFKA_PROCESS_ROLES: broker,controller</span>
+    and <span class="inline-code">KAFKA_CONTROLLER_QUORUM_VOTERS: 1@broker:29093</span>.
+    This eliminates the ZooKeeper dependency, reduces operational complexity, and is how
+    Confluent Cloud runs today. ZooKeeper was deprecated and removed entirely in Kafka 4.0.
+  </div>
+
+  <!-- ICEBERG -->
+  <h3>Apache Iceberg 1.5.2 <span class="badge badge-iceberg">Table Format</span></h3>
+  <div class="card-grid">
+    <div class="card accent">
+      <h4>WHAT it is</h4>
+      <p>Iceberg is an open table format for huge analytic datasets. It sits on top of
+        files (Parquet, ORC, Avro) stored in any object store (S3, GCS, ADLS) and adds
+        ACID transactions, schema evolution, hidden partitioning, and time-travel.</p>
+    </div>
+    <div class="card green">
+      <h4>HOW it works internally</h4>
+      <p>Every write creates a new <strong>snapshot</strong>. A snapshot points to a
+        manifest list → manifest files → data files. The <em>metadata.json</em> pointer
+        is atomically updated via rename. No data file is ever modified — only new ones
+        are added. Old snapshots remain intact for time-travel queries.</p>
+    </div>
+    <div class="card orange">
+      <h4>WHY we chose Iceberg over Delta/Hudi</h4>
+      <p>Confluent Tableflow targets Iceberg specifically. It has the broadest engine
+        support (Spark, Flink, Trino, DuckDB), the cleanest catalog abstraction (swap
+        HadoopCatalog for GlueCatalog with zero code changes), and REST catalog support
+        for cloud-native deployments.</p>
+    </div>
+  </div>
+
+  <h4>How an Iceberg write works in IcebergTableWriter.java</h4>
+  <div class="code-label">IcebergTableWriter.java — append()</div>
+  <pre><code>// Step 1: Write a new Parquet file to the table's data/ directory
+String location = table.location() + "/data/" + UUID.randomUUID() + ".parquet";
+OutputFile outputFile = table.io().newOutputFile(location);
+
+FileAppender&lt;GenericRecord&gt; appender = Parquet.write(outputFile)
+    .schema(table.schema())
+    .createWriterFunc(GenericParquetWriter::buildWriter)
+    .overwrite()
+    .build();
+
+try (appender) { /* write all records */ }
+
+// Step 2: Build a DataFile with column-level statistics (Metrics)
+// These stats are what make Iceberg fast — query engines skip whole
+// files based on min/max without reading them.
+DataFile dataFile = DataFiles.builder(table.spec())
+    .withInputFile(table.io().newInputFile(outputFile.location()))
+    .withMetrics(appender.metrics())   // ← column stats for pruning
+    .build();
+
+// Step 3: Atomic snapshot commit — no existing data is ever touched
+table.newAppend()
+    .appendFile(dataFile)
+    .commit();  // ← writes new JSON snapshot + updates metadata.json pointer</code></pre>
+
+  <!-- PARQUET -->
+  <h3>Apache Parquet 1.13.1 <span class="badge badge-iceberg">Column Format</span></h3>
+  <p>Parquet is a columnar storage format. Instead of row-by-row storage, it stores all
+    values of a column together. This means:</p>
+  <ul>
+    <li><strong>Predicate pushdown:</strong> a query like <span class="inline-code">WHERE product_id = 'prod-001'</span> reads only the product_id column, skipping all others.</li>
+    <li><strong>Compression:</strong> similar values in a column compress far better than mixed-type rows.</li>
+    <li><strong>Vectorized reads:</strong> query engines can read entire column chunks in one SIMD operation.</li>
+  </ul>
+  <p>We added explicit <span class="inline-code">parquet-column</span> and <span class="inline-code">parquet-hadoop</span> dependencies in <span class="inline-code">pom.xml</span> because some Maven mirrors fail to transitively resolve them through Iceberg — a real production build pattern when using SAP's internal Artifactory.</p>
+
+  <!-- GO -->
+  <h3>Go 1.22 — Control Plane <span class="badge badge-go">Lifecycle</span></h3>
+  <div class="card-grid">
+    <div class="card accent">
+      <h4>WHAT it does</h4>
+      <p>Accepts user REST calls, persists state to SQLite, forwards worker lifecycle
+        commands to the Java data plane, runs a 30-second background reconciler, and
+        exposes Prometheus metrics.</p>
+    </div>
+    <div class="card green">
+      <h4>HOW we use Go idioms</h4>
+      <p>Goroutines for parallel <code>enrich()</code> calls with a semaphore
+        (<code>chan struct{}{}</code>) to limit concurrency to 20. Context timeouts
+        (2s per enrichment call). Channels for graceful shutdown signalling.</p>
+    </div>
+    <div class="card orange">
+      <h4>WHY Go for control planes</h4>
+      <p>Confluent, Stripe, Cloudflare, and LinkedIn all write control-plane services
+        in Go. It starts in milliseconds (critical for k8s readiness probes), uses ~10 MB
+        RAM baseline vs ~200 MB for a JVM service, and the goroutine model maps naturally
+        to "manage N concurrent lightweight tasks".</p>
+    </div>
+  </div>
+
+  <!-- SQLITE -->
+  <h3>SQLite with WAL mode <span class="badge badge-go">State Store</span></h3>
+  <p>SQLite is the control plane's state database. It stores the mapping between
+    <code>(id, topic, table_name)</code> and live worker status.</p>
+  <h4>Why WAL (Write-Ahead Log) mode?</h4>
+  <p>In default journal mode, writers block all readers. WAL mode allows <strong>one writer
+    and many concurrent readers simultaneously</strong>. This matters because Go's HTTP
+    handlers run in parallel goroutines — without WAL, a status update would block every
+    concurrent <code>GET /api/v1/tables</code> call.</p>
+  <div class="code-label">sqlite.go — DSN with WAL</div>
+  <pre><code>dsn := path + "?_journal_mode=WAL&_busy_timeout=5000&_foreign_keys=on"
+// _busy_timeout: retry for up to 5 seconds before returning SQLITE_BUSY
+// _foreign_keys: enforce FK constraints (future extensibility)
+conn.SetMaxOpenConns(1) // single connection serialises writes; WAL handles reads</code></pre>
+
+  <!-- DOCKER / CONFLUENT -->
+  <h3>Confluent Platform 7.6 on Docker <span class="badge badge-docker">Ecosystem</span></h3>
+  <p>The entire Confluent ecosystem runs locally via a single <span class="inline-code">docker compose up -d</span> command. This mirrors exactly what Confluent Cloud provides as a managed service.</p>
+  <div class="tbl-wrap">
+    <table>
+      <tr><th>Service</th><th>Port</th><th>Role</th><th>Why it's included</th></tr>
+      <tr><td>Kafka Broker (KRaft)</td><td>9092</td><td>Event streaming backbone</td><td>Core — everything flows through here</td></tr>
+      <tr><td>Schema Registry</td><td>8081</td><td>Avro/JSON/Protobuf schema management</td><td>Production Kafka always uses schemas; prevents silent data corruption</td></tr>
+      <tr><td>Kafka Connect</td><td>8083</td><td>Pre-built source/sink connectors</td><td>Alternative to custom consumers for standard integrations (JDBC, S3, Iceberg)</td></tr>
+      <tr><td>ksqlDB</td><td>8088</td><td>SQL streaming engine over Kafka</td><td>Lets analysts query live topics without writing code; Confluent product</td></tr>
+      <tr><td>REST Proxy</td><td>8082</td><td>HTTP interface to Kafka</td><td>Enables non-JVM apps (Python, browser) to produce/consume without a Kafka client</td></tr>
+      <tr><td>Kafka UI</td><td>8080</td><td>Visual browser for topics, schemas, connectors</td><td>Developer experience — inspect messages, offsets, lag</td></tr>
+    </table>
+  </div>
+
+  <!-- PROMETHEUS -->
+  <h3>Prometheus Metrics <span class="badge badge-docker">Observability</span></h3>
+  <p>The Java data plane exposes JVM metrics (GC pause times, heap usage, thread counts)
+    via the Prometheus Java client on <span class="inline-code">:8001/metrics</span>.
+    The Go control plane uses the <span class="inline-code">promhttp</span> handler on
+    <span class="inline-code">:8000/metrics</span>. In production this feeds Grafana dashboards.</p>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     4 — JAVA DATA PLANE
+═══════════════════════════════════════════════════════════════════ -->
+<section id="dataplane">
+  <h2><span class="section-num">4</span> Java Data Plane — Deep Dive</h2>
+  <p class="lead">The data plane is the engine room. It receives worker start/stop commands,
+    runs one thread per Kafka topic, and atomically materializes records into Iceberg.</p>
+
+  <h3>Class Hierarchy</h3>
+  <div class="tbl-wrap">
+    <table>
+      <tr><th>Class</th><th>Role</th><th>Key fields</th></tr>
+      <tr>
+        <td><strong>Main</strong></td>
+        <td>Entry point — dispatches to server / producer / streams modes</td>
+        <td>Reads env vars; registers shutdown hook</td>
+      </tr>
+      <tr>
+        <td><strong>DataPlaneServer</strong></td>
+        <td>HTTP server — exposes POST/GET/DELETE /workers</td>
+        <td><code>ThreadPoolExecutor</code> (max cores×2, min 4); WorkerRegistry reference</td>
+      </tr>
+      <tr>
+        <td><strong>WorkerRegistry</strong></td>
+        <td>Thread-safe registry — owns worker lifecycle</td>
+        <td><code>ConcurrentHashMap&lt;String,TableWorker&gt;</code>; bounded <code>ThreadPoolExecutor</code>; watchdog <code>ScheduledExecutorService</code></td>
+      </tr>
+      <tr>
+        <td><strong>TableWorker</strong></td>
+        <td>One thread per topic — polls Kafka, writes Iceberg batches</td>
+        <td><code>AtomicBoolean running</code>; <code>AtomicInteger restartCount</code>; <code>ConsumerRebalanceListener</code></td>
+      </tr>
+      <tr>
+        <td><strong>IcebergTableWriter</strong></td>
+        <td>Parquet + Iceberg write path per worker</td>
+        <td><code>HadoopCatalog catalog</code>; <code>Table table</code>; atomic <code>append()</code></td>
+      </tr>
+      <tr>
+        <td><strong>OrderProducer</strong></td>
+        <td>Fake event generator — idempotent Kafka producer</td>
+        <td>enable.idempotence=true; acks=all; snappy compression</td>
+      </tr>
+      <tr>
+        <td><strong>OrderMetricsStream</strong></td>
+        <td>Kafka Streams — filter pipeline + windowed revenue aggregation</td>
+        <td>Two topologies: filter PLACED→orders-placed; aggregate revenue per product per minute</td>
+      </tr>
+    </table>
+  </div>
+
+  <h3>TableWorker — The Core Loop</h3>
+  <p>Each TableWorker is a <code>Runnable</code> submitted to the bounded executor. Its main loop:</p>
+  <div class="flow-steps">
+    <div class="flow-step">
+      <div class="flow-step-num">1</div>
+      <div class="flow-step-body">
+        <h5>Guard: check AtomicBoolean before run()</h5>
+        <p>If <code>stop()</code> was called before the executor scheduled this thread,
+          <code>running.get()</code> is already false — the worker exits immediately without
+          opening a Kafka consumer or Iceberg writer. Prevents "zombie" workers that hold
+          resources but were cancelled before they started.</p>
+      </div>
+    </div>
+    <div class="flow-step-line"></div>
+    <div class="flow-step">
+      <div class="flow-step-num">2</div>
+      <div class="flow-step-body">
+        <h5>Subscribe with ConsumerRebalanceListener</h5>
+        <p><code>consumer.subscribe(List.of(topic), rebalanceListener)</code> — the listener
+          is called by the broker when partitions are reassigned (scale-out, rolling restart,
+          consumer crash). On revocation: flush the in-memory buffer to Iceberg and commit
+          offsets <em>before</em> partitions are handed to another consumer. This prevents
+          the "lost message window" where records are buffered but not yet committed.</p>
+      </div>
+    </div>
+    <div class="flow-step-line"></div>
+    <div class="flow-step">
+      <div class="flow-step-num">3</div>
+      <div class="flow-step-body">
+        <h5>Poll loop: accumulate into buffer + pendingOffsets</h5>
+        <p><code>consumer.poll(300ms)</code> returns up to <code>max.poll.records</code> (500)
+          records. Each record is deserialized from JSON, enriched with kafka_offset and
+          kafka_partition (for deduplication), and added to the in-memory buffer. The highest
+          offset per TopicPartition is tracked in <code>pendingOffsets</code>.</p>
+      </div>
+    </div>
+    <div class="flow-step-line"></div>
+    <div class="flow-step">
+      <div class="flow-step-num">4</div>
+      <div class="flow-step-body">
+        <h5>Flush when: 100 records buffered OR 5 seconds since last flush</h5>
+        <p>This micro-batching pattern trades latency (up to 5s) for write efficiency
+          (100 records per Parquet file instead of 1). Production Tableflow uses similar
+          configurable batch windows (e.g. 5-minute commit intervals for large tables).</p>
+      </div>
+    </div>
+    <div class="flow-step-line"></div>
+    <div class="flow-step">
+      <div class="flow-step-num">5</div>
+      <div class="flow-step-body">
+        <h5>flush(): write Iceberg THEN commit Kafka offsets</h5>
+        <p>Order is critical. Writing Iceberg first means: if the JVM crashes after the
+          Iceberg commit but before the Kafka offset commit, the records will be re-delivered
+          and written again (duplicate Iceberg snapshot). This is the at-least-once guarantee.
+          The duplicate can be detected via <code>(kafka_partition, kafka_offset)</code> fields
+          stored in every Parquet row — exactly how Confluent Tableflow handles it.</p>
+      </div>
+    </div>
+    <div class="flow-step-line"></div>
+    <div class="flow-step">
+      <div class="flow-step-num">6</div>
+      <div class="flow-step-body">
+        <h5>commitSync with exponential backoff on RetriableException</h5>
+        <p>Transient broker errors (leader election, network blip) throw
+          <code>RetriableException</code>. We retry up to 6 times with backoff starting at
+          1s, doubling to a 30s cap. Non-retriable errors (AuthorizationException) propagate
+          immediately and kill the worker. The watchdog will restart it.</p>
+      </div>
+    </div>
+  </div>
+
+  <h3>WorkerRegistry — Supervisor Pattern</h3>
+  <p>Every 10 seconds, the watchdog thread scans all workers:</p>
+  <ul>
+    <li><strong>status = error:</strong> if restart count &lt; 5, call <code>resetForRestart()</code> (sets <code>running=true</code>, clears error) and resubmit to the executor. This handles transient Kafka/Iceberg failures without operator intervention.</li>
+    <li><strong>status = stopped:</strong> remove from the ConcurrentHashMap. Frees memory for the Java GC.</li>
+  </ul>
+  <div class="callout callout-orange">
+    <div class="callout-title">TOCTOU race fix — putIfAbsent</div>
+    A naive implementation uses <code>if (!workers.containsKey(id)) workers.put(id, worker)</code>.
+    Under concurrent HTTP requests (two simultaneous POST /workers for the same topic),
+    both threads can pass the <code>containsKey</code> check before either writes — two workers
+    consume the same topic, splitting messages and creating duplicate Iceberg snapshots.
+    <code>putIfAbsent</code> is a single atomic CAS operation that eliminates this race entirely.
+  </div>
+
+  <h3>Kafka Streams — OrderMetricsStream</h3>
+  <p>Demonstrates two real-world streaming topologies over the same <code>orders</code> topic:</p>
+  <div class="tbl-wrap">
+    <table>
+      <tr><th>Pipeline</th><th>Topology</th><th>Output Topic</th><th>Use Case</th></tr>
+      <tr>
+        <td>A — Filter &amp; Forward</td>
+        <td>source → filter(status=PLACED) → sink</td>
+        <td>orders-placed</td>
+        <td>Downstream fulfillment systems only care about new orders</td>
+      </tr>
+      <tr>
+        <td>B — Windowed Aggregation</td>
+        <td>source → selectKey(product_id) → groupByKey → 1-min tumbling window → SUM(price)</td>
+        <td>product-revenue-metrics</td>
+        <td>Real-time revenue dashboard; anomaly detection on revenue spikes</td>
+      </tr>
+    </table>
+  </div>
+  <div class="callout callout-blue">
+    <div class="callout-title">selectKey() causes a repartition</div>
+    The source topic is keyed by <code>customer_id</code>. To aggregate by <code>product_id</code>,
+    we call <code>selectKey((cid, order) → order.getProductId())</code>. Kafka Streams
+    automatically writes an internal repartition topic and re-reads it — guaranteeing all
+    records for the same product land on the same partition before the stateful aggregation.
+    This is the fundamental "shuffle" operation in distributed stream processing.
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     5 — GO CONTROL PLANE
+═══════════════════════════════════════════════════════════════════ -->
+<section id="controlplane">
+  <h2><span class="section-num">5</span> Go Control Plane — Deep Dive</h2>
+
+  <h3>Request Flow: POST /api/v1/tables</h3>
+  <div class="code-label">handler.go — CreateTable</div>
+  <pre><code>// 1. Validate input
+if req.Topic == "" { writeErr(w, 400, "topic is required"); return }
+
+// 2. Idempotency check — return 409 if topic already registered
+if existing, err := h.db.GetByTopic(req.Topic); err == nil {
+    writeJSON(w, 409, map[string]any{"error": "topic already registered", "table": existing})
+    return
+}
+
+// 3. Generate ID, persist to SQLite with status=starting
+id := randomID(4)
+_ = h.db.Upsert(store.Table{ID: id, Topic: req.Topic, TableName: tableName, Status: "starting"})
+
+// 4. Forward to Java data plane with retry (3 attempts, exponential backoff)
+for attempt := 0; attempt &lt; 3; attempt++ {
+    resp, err = h.client.Post(h.dataPlaneURL+"/workers", "application/json", bytes.NewReader(payload))
+    if err == nil &amp;&amp; resp.StatusCode &lt; 500 { break }
+    time.Sleep(time.Duration(100*(1&lt;&lt;attempt)) * time.Millisecond) // 100ms, 200ms, 400ms
+}
+
+// 5. On success, update SQLite to running; on failure, mark error
+_ = h.db.UpdateStatus(id, "running", 0, nil)</code></pre>
+
+  <h3>Startup Reconciliation — Split-Brain Recovery</h3>
+  <p>When the Go control plane starts, it calls <code>reconcileWorkers()</code>:</p>
+  <ul>
+    <li><strong>Case 1 — Go restarted while Java kept running:</strong> SQLite shows <code>running</code> but Java has the workers already. The reconciler skips these (they're in <code>liveWorkers</code> map).</li>
+    <li><strong>Case 2 — Java restarted, lost its workers:</strong> SQLite shows <code>running</code> but the worker is absent from Java's WorkerRegistry. The reconciler re-posts <code>POST /workers</code> to re-register it.</li>
+    <li><strong>Case 3 — Both crashed and restarted:</strong> SQLite rows exist, Java has nothing. Full re-registration.</li>
+    <li><strong>Case 4 — Go crashed during worker creation:</strong> Java has a worker but no SQLite row. The reconciler sends <code>DELETE /workers/{id}</code> to stop the orphan.</li>
+  </ul>
+  <p>After startup, a background goroutine re-runs this reconciliation every 30 seconds to catch mid-run failures.</p>
+
+  <h3>ListTables — Parallel Enrichment</h3>
+  <div class="code-label">handler.go — ListTables (fan-out pattern)</div>
+  <pre><code>tables, _ := h.db.List()
+enriched := make([]store.Table, len(tables))
+var wg sync.WaitGroup
+sem := make(chan struct{}, 20)  // max 20 concurrent Java calls
+
+for i, t := range tables {
+    wg.Add(1)
+    go func(i int, t store.Table) {
+        defer wg.Done()
+        sem &lt;- struct{}{}        // acquire semaphore
+        defer func() { &lt;-sem }() // release on exit
+        enriched[i] = enrich(ctx, t) // 2s timeout per call to Java
+    }(i, t)
+}
+wg.Wait()
+writeJSON(w, 200, enriched)</code></pre>
+  <p>Without the semaphore, listing 1000 tables would fan out 1000 concurrent HTTP calls to
+    Java. The 20-wide semaphore prevents overwhelming the Java process while still completing
+    in ~(N/20 × 2s) instead of N×2s sequentially.</p>
+
+  <h3>SQLite State Machine</h3>
+  <p>Worker status transitions are constrained at the database layer by a <code>CHECK</code> constraint:</p>
+  <div class="code-label">sqlite.go — DDL</div>
+  <pre><code>status TEXT NOT NULL DEFAULT 'stopped'
+    CHECK (status IN ('starting','running','stopping','stopped','error'))</code></pre>
+
+  <div class="arch-diagram">
+    <svg viewBox="0 0 600 100" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, system-ui, sans-serif">
+      <rect x="10"  y="30" width="90" height="36" rx="6" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+      <text x="55"  y="53" text-anchor="middle" font-size="13" font-weight="700" fill="#1e3a5f">starting</text>
+      <rect x="140" y="30" width="90" height="36" rx="6" fill="#d1fae5" stroke="#22c55e" stroke-width="1.5"/>
+      <text x="185" y="53" text-anchor="middle" font-size="13" font-weight="700" fill="#166534">running</text>
+      <rect x="270" y="30" width="90" height="36" rx="6" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5"/>
+      <text x="315" y="53" text-anchor="middle" font-size="13" font-weight="700" fill="#92400e">stopping</text>
+      <rect x="400" y="30" width="90" height="36" rx="6" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5"/>
+      <text x="445" y="53" text-anchor="middle" font-size="13" font-weight="700" fill="#334155">stopped</text>
+      <rect x="500" y="30" width="80" height="36" rx="6" fill="#fee2e2" stroke="#ef4444" stroke-width="1.5"/>
+      <text x="540" y="53" text-anchor="middle" font-size="13" font-weight="700" fill="#991b1b">error</text>
+
+      <defs><marker id="a" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#64748b"/></marker></defs>
+      <line x1="100" y1="48" x2="140" y2="48" stroke="#64748b" stroke-width="1.5" marker-end="url(#a)"/>
+      <line x1="230" y1="48" x2="270" y2="48" stroke="#64748b" stroke-width="1.5" marker-end="url(#a)"/>
+      <line x1="360" y1="48" x2="400" y2="48" stroke="#64748b" stroke-width="1.5" marker-end="url(#a)"/>
+      <path d="M400,42 Q455,10 500,42" stroke="#ef4444" fill="none" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#a)"/>
+      <text x="452" y="18" text-anchor="middle" font-size="10" fill="#ef4444">crash</text>
+      <!-- watchdog restart arrow -->
+      <path d="M500,60 Q440,90 230,60" stroke="#22c55e" fill="none" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#a)"/>
+      <text x="380" y="90" text-anchor="middle" font-size="9" fill="#166534">watchdog restart (≤5×)</text>
+    </svg>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     6 — CONFLUENT ECOSYSTEM
+═══════════════════════════════════════════════════════════════════ -->
+<section id="confluent">
+  <h2><span class="section-num">6</span> Confluent Ecosystem Components</h2>
+
+  <h3>Schema Registry — Why schemas matter</h3>
+  <p>Without a schema registry, a producer can change a field name and the consumer silently
+    reads null. Schema Registry stores Avro/JSON/Protobuf schemas and enforces compatibility
+    rules (BACKWARD, FORWARD, FULL) on every new version. Our <span class="inline-code">order.avsc</span>
+    defines the canonical Order event schema.</p>
+  <div class="code-label">order.avsc</div>
+  <pre><code>{
+  "type": "record",
+  "name": "Order",
+  "namespace": "com.streamlake",
+  "fields": [
+    {"name": "order_id",    "type": "string"},
+    {"name": "customer_id", "type": ["null","string"], "default": null},
+    {"name": "product_id",  "type": ["null","string"], "default": null},
+    {"name": "quantity",    "type": ["null","int"],    "default": null},
+    {"name": "price",       "type": ["null","double"], "default": null},
+    {"name": "status",      "type": ["null","string"], "default": null},
+    {"name": "event_time",  "type": ["null","string"], "default": null}
+  ]
+}</code></pre>
+
+  <h3>Kafka Connect — Alternative ingestion path</h3>
+  <p>While StreamLake uses a custom Java consumer for maximum control, Kafka Connect
+    provides pre-built connectors for common sources (databases, S3, cloud services).
+    The Confluent Hub has connectors for:</p>
+  <ul>
+    <li><strong>Iceberg Sink Connector:</strong> directly writes Kafka topics to Iceberg without custom code</li>
+    <li><strong>JDBC Source Connector:</strong> CDC from any JDBC database into Kafka</li>
+    <li><strong>S3 Sink Connector:</strong> archive Kafka topics to S3/GCS/ADLS as Parquet/Avro</li>
+  </ul>
+  <p>Connect runs on <span class="inline-code">:8083</span> and is configured via REST API.
+    Workers in the Connect cluster auto-scale by adding more Connect pods in Kubernetes.</p>
+
+  <h3>ksqlDB — SQL on Kafka</h3>
+  <p>ksqlDB lets you write SQL queries that run continuously over Kafka topics. Example:</p>
+  <div class="code-label">ksqlDB query</div>
+  <pre><code>-- Create a stream from the orders topic
+CREATE STREAM orders (
+  order_id VARCHAR, customer_id VARCHAR, product_id VARCHAR,
+  quantity INT, price DOUBLE, status VARCHAR
+) WITH (KAFKA_TOPIC='orders', VALUE_FORMAT='JSON');
+
+-- Real-time revenue per product (last 5 minutes)
+SELECT product_id, SUM(price) AS revenue
+FROM orders
+WINDOW TUMBLING (SIZE 5 MINUTES)
+GROUP BY product_id
+EMIT CHANGES;</code></pre>
+  <p>This is the SQL equivalent of our Kafka Streams <code>OrderMetricsStream</code> Pipeline B.
+    ksqlDB uses Kafka Streams internally — it's a higher-level interface for teams without
+    Java expertise.</p>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     7 — END-TO-END DATA FLOW
+═══════════════════════════════════════════════════════════════════ -->
+<section id="dataflow">
+  <h2><span class="section-num">7</span> End-to-End Data Flow</h2>
+  <p class="lead">Trace a single order event from the producer's keyboard to an Iceberg Parquet file.</p>
+
+  <div class="flow-steps">
+    <div class="flow-step">
+      <div class="flow-step-num">1</div>
+      <div class="flow-step-body">
+        <h5>OrderProducer generates a fake order</h5>
+        <p>A random <code>Order</code> POJO is serialized to JSON:
+          <code>{"order_id":"abc-123","customer_id":"cust-4521","product_id":"prod-003","quantity":2,"price":99.98,"status":"PLACED","event_time":"2026-08-14T..."}</code>.
+          The key is <code>customer_id</code> — guarantees all orders from one customer land on the same partition, preserving per-customer ordering.</p>
+      </div>
+    </div>
+    <div class="flow-step-line"></div>
+    <div class="flow-step">
+      <div class="flow-step-num">2</div>
+      <div class="flow-step-body">
+        <h5>Producer sends to Kafka with idempotence</h5>
+        <p><code>enable.idempotence=true</code> means the broker assigns this producer a unique
+          PID (Producer ID) and assigns sequence numbers to each batch. If a network timeout
+          causes a retry, the broker deduplicates the retry using the sequence number —
+          exactly-once delivery to the broker even under retries.</p>
+      </div>
+    </div>
+    <div class="flow-step-line"></div>
+    <div class="flow-step">
+      <div class="flow-step-num">3</div>
+      <div class="flow-step-body">
+        <h5>Broker appends to partition log</h5>
+        <p>The <code>orders</code> topic has 3 partitions. Kafka assigns a partition based on
+          <code>hash(customer_id) % 3</code>. The record is persisted to the broker's disk
+          under <code>/tmp/kraft-combined-logs/orders-{0,1,2}/</code>. With <code>acks=all</code>,
+          the broker waits for all in-sync replicas (1 here, since single-node) to write
+          before acknowledging to the producer.</p>
+      </div>
+    </div>
+    <div class="flow-step-line"></div>
+    <div class="flow-step">
+      <div class="flow-step-num">4</div>
+      <div class="flow-step-body">
+        <h5>User creates an Iceberg table via Control Plane API</h5>
+        <p><code>POST http://localhost:8000/api/v1/tables</code> with body
+          <code>{"topic":"orders","table_name":"orders"}</code>. The Go handler validates,
+          checks for duplicates (409 if exists), persists to SQLite with status=starting,
+          then POSTs to Java: <code>POST http://localhost:9090/workers</code>.</p>
+      </div>
+    </div>
+    <div class="flow-step-line"></div>
+    <div class="flow-step">
+      <div class="flow-step-num">5</div>
+      <div class="flow-step-body">
+        <h5>Java creates a TableWorker and submits to the executor</h5>
+        <p><code>WorkerRegistry.start()</code> uses <code>putIfAbsent</code> to atomically
+          register the worker, then submits it to the bounded <code>ThreadPoolExecutor</code>.
+          The worker transitions: starting → running on the first successful poll cycle.</p>
+      </div>
+    </div>
+    <div class="flow-step-line"></div>
+    <div class="flow-step">
+      <div class="flow-step-num">6</div>
+      <div class="flow-step-body">
+        <h5>TableWorker polls Kafka and buffers records</h5>
+        <p>Each <code>consumer.poll(300ms)</code> call returns up to 500 records from the
+          <code>orders</code> topic. The worker buffers them in-memory and tracks the highest
+          offset per partition in <code>pendingOffsets</code>.</p>
+      </div>
+    </div>
+    <div class="flow-step-line"></div>
+    <div class="flow-step">
+      <div class="flow-step-num">7</div>
+      <div class="flow-step-body">
+        <h5>Flush: write Parquet file → commit Iceberg snapshot → commit Kafka offsets</h5>
+        <p>When the buffer reaches 100 records or 5 seconds has elapsed:
+          (a) <code>IcebergTableWriter.append(buffer)</code> writes a Parquet file with column
+          stats and commits an atomic Iceberg snapshot. (b) <code>consumer.commitSync(pendingOffsets)</code>
+          advances the consumer group offsets. Any crash between (a) and (b) means re-delivery
+          on restart — duplicate Iceberg snapshot, deduplicable by kafka_offset.</p>
+      </div>
+    </div>
+    <div class="flow-step-line"></div>
+    <div class="flow-step">
+      <div class="flow-step-num">8</div>
+      <div class="flow-step-body">
+        <h5>Iceberg snapshot is queryable</h5>
+        <p>The Parquet file lands in <code>warehouse/streamlake/orders/data/&lt;uuid&gt;.parquet</code>.
+          The snapshot is recorded in <code>warehouse/streamlake/orders/metadata/</code>.
+          Any Iceberg-compatible engine (Spark, Trino, DuckDB, Flink) can now query:
+          <code>SELECT * FROM orders WHERE status = 'PLACED'</code>
+          using column statistics to skip irrelevant files.</p>
+      </div>
+    </div>
+  </div>
+
+  <h3>Kafka Streams parallel path</h3>
+  <p>Simultaneously, the Kafka Streams app (<code>make streams</code>) consumes the same
+    <code>orders</code> topic on a <em>different consumer group</em>
+    (<code>streamlake-order-metrics</code>) and produces to two output topics without
+    interfering with the TableWorker path. This is the power of Kafka's consumer group
+    isolation — multiple independent applications can read the same topic at their own pace.</p>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     8 — DISTRIBUTED SYSTEMS GUARANTEES
+═══════════════════════════════════════════════════════════════════ -->
+<section id="distributed">
+  <h2><span class="section-num">8</span> Distributed Systems Guarantees</h2>
+  <p class="lead">Eight critical distributed systems properties were explicitly implemented.
+    Each was identified by architectural analysis and fixed from first principles.</p>
+
+  <div class="tbl-wrap">
+    <table>
+      <tr><th>Property</th><th>Problem (without fix)</th><th>Solution implemented</th><th>File</th></tr>
+      <tr>
+        <td><span class="badge badge-crit">Critical</span><br/><strong>At-least-once delivery</strong></td>
+        <td>Kafka offsets committed before Iceberg write → records lost on crash</td>
+        <td>Write Iceberg first, commit offsets second. Duplicate snapshots are deduplicable via kafka_offset stored in each row.</td>
+        <td>TableWorker.java flush()</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-crit">Critical</span><br/><strong>Rebalance flush</strong></td>
+        <td>On partition revocation, in-memory buffer dropped → records lost</td>
+        <td>ConsumerRebalanceListener.onPartitionsRevoked() flushes buffer + commits offsets before handing off partitions</td>
+        <td>TableWorker.java rebalanceListener</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-crit">Critical</span><br/><strong>TOCTOU race</strong></td>
+        <td>containsKey + put is not atomic → duplicate workers for same topic under concurrent POST /workers</td>
+        <td>ConcurrentHashMap.putIfAbsent() — single atomic CAS. Throws IllegalStateException on duplicate, caught as 409.</td>
+        <td>WorkerRegistry.java start()</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-crit">Critical</span><br/><strong>Split-brain recovery</strong></td>
+        <td>After Go restart, SQLite shows 'running' but Java has no worker → workers never restart</td>
+        <td>Startup reconcileWorkers() re-registers missing workers; backgroundReconcile() repeats every 30s</td>
+        <td>control-plane/main.go</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-high">High</span><br/><strong>Supervisor/watchdog</strong></td>
+        <td>Transient Kafka/Iceberg error permanently kills a worker (no restart)</td>
+        <td>ScheduledExecutorService watchdog restarts error-state workers up to 5× with resetForRestart()</td>
+        <td>WorkerRegistry.java supervise()</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-high">High</span><br/><strong>Idempotent create</strong></td>
+        <td>Duplicate POST /api/v1/tables for same topic creates two workers consuming same Kafka messages</td>
+        <td>GetByTopic() check + UNIQUE(topic) DB constraint + 409 response</td>
+        <td>handler.go + sqlite.go</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-high">High</span><br/><strong>Serial HTTP executor</strong></td>
+        <td>setExecutor(null) uses inline executor → one blocking handler stalls all requests</td>
+        <td>newFixedThreadPool(max(4, cores×2)) with daemon threads</td>
+        <td>DataPlaneServer.java constructor</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-high">High</span><br/><strong>SQLite WAL + UNIQUE</strong></td>
+        <td>Default journal mode blocks readers during writes; no UNIQUE on topic allows data races</td>
+        <td>WAL mode, busy_timeout=5s, UNIQUE(topic), CHECK constraint on status</td>
+        <td>sqlite.go New() + migrate()</td>
+      </tr>
+    </table>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     9 — API REFERENCE
+═══════════════════════════════════════════════════════════════════ -->
+<section id="api">
+  <h2><span class="section-num">9</span> API Reference</h2>
+
+  <h3>Control Plane API — Go (:8000)</h3>
+  <div class="tbl-wrap">
+    <table>
+      <tr><th>Method</th><th>Path</th><th>Description</th><th>Request body</th><th>Response</th></tr>
+      <tr>
+        <td>POST</td><td>/api/v1/tables</td>
+        <td>Register a new Kafka→Iceberg pipeline</td>
+        <td><code>{"topic":"orders","table_name":"orders"}</code></td>
+        <td>201 with table record; 409 if topic already exists</td>
+      </tr>
+      <tr>
+        <td>GET</td><td>/api/v1/tables</td>
+        <td>List all pipelines with live status</td>
+        <td>—</td>
+        <td>200 array of table records enriched from Java</td>
+      </tr>
+      <tr>
+        <td>GET</td><td>/api/v1/tables/{id}</td>
+        <td>Get one pipeline by ID</td>
+        <td>—</td>
+        <td>200 table record; 404 if not found</td>
+      </tr>
+      <tr>
+        <td>DELETE</td><td>/api/v1/tables/{id}</td>
+        <td>Stop a pipeline (graceful drain)</td>
+        <td>—</td>
+        <td>204 success; 502 if data-plane unreachable</td>
+      </tr>
+      <tr>
+        <td>GET</td><td>/health</td>
+        <td>Liveness probe</td>
+        <td>—</td>
+        <td>200 <code>{"status":"ok"}</code></td>
+      </tr>
+      <tr>
+        <td>GET</td><td>/metrics</td>
+        <td>Prometheus metrics</td>
+        <td>—</td>
+        <td>200 text/plain Prometheus format</td>
+      </tr>
+    </table>
+  </div>
+
+  <h3>Data Plane API — Java (:9090)</h3>
+  <div class="tbl-wrap">
+    <table>
+      <tr><th>Method</th><th>Path</th><th>Description</th><th>Request body</th><th>Response</th></tr>
+      <tr>
+        <td>POST</td><td>/workers</td>
+        <td>Start a new TableWorker</td>
+        <td><code>{"worker_id":"x","topic":"orders","table_name":"orders"}</code></td>
+        <td>201 worker; 409 if duplicate; 400 missing fields</td>
+      </tr>
+      <tr>
+        <td>GET</td><td>/workers</td>
+        <td>List all workers + live status, records_written</td>
+        <td>—</td>
+        <td>200 array</td>
+      </tr>
+      <tr>
+        <td>GET</td><td>/workers/{id}</td>
+        <td>Get one worker by ID</td>
+        <td>—</td>
+        <td>200; 404</td>
+      </tr>
+      <tr>
+        <td>DELETE</td><td>/workers/{id}</td>
+        <td>Signal worker to stop (graceful drain)</td>
+        <td>—</td>
+        <td>204 success; 404 not found</td>
+      </tr>
+      <tr>
+        <td>GET</td><td>/health</td>
+        <td>Liveness + worker count</td>
+        <td>—</td>
+        <td>200 <code>{"status":"ok","workers":3}</code></td>
+      </tr>
+    </table>
+  </div>
+
+  <h3>Table Record Schema</h3>
+  <pre><code>{
+  "id":              "a3f9",          // random 8-char hex ID
+  "topic":           "orders",        // Kafka topic name
+  "table_name":      "orders",        // Iceberg table name
+  "status":          "running",       // starting|running|stopping|stopped|error
+  "records_written": 4820,            // monotonically increasing counter
+  "error":           null,            // populated on status=error
+  "created_at":      "2026-08-14T10:30:00Z"
+}</code></pre>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     10 — LOCAL DEVELOPMENT
+═══════════════════════════════════════════════════════════════════ -->
+<section id="local">
+  <h2><span class="section-num">10</span> Local Development Guide</h2>
+
+  <h3>Prerequisites</h3>
+  <ul>
+    <li>Docker Desktop (for the Confluent stack)</li>
+    <li>Java 17+ (SapMachine JDK 21 works) + Maven 3.8+</li>
+    <li>Go 1.22+ (for the control plane)</li>
+  </ul>
+
+  <h3>Step-by-step startup</h3>
+
+  <h4>1. Start the Confluent Docker stack</h4>
+  <pre><code>cd c:\Users\I751382\Desktop\Kafka
+docker compose up -d
+# Wait ~30s for all services to be healthy
+docker compose ps   # all should show (healthy)</code></pre>
+
+  <h4>2. Build the Java fat jar</h4>
+  <pre><code>cd data-plane
+mvn clean package -q -DskipTests
+# Produces: target/data-plane-1.0.0.jar (~161 MB with all dependencies)</code></pre>
+
+  <h4>3. Start the Data Plane (HTTP API on :9090)</h4>
+  <pre><code>cd data-plane
+java -jar target/data-plane-1.0.0.jar server
+# You'll see:
+# ╔══════════════════════════════════════════════╗
+# ║  StreamLake  Data Plane  (Java)              ║
+# ╠══════════════════════════════════════════════╣
+# ║  Workers API  →  http://localhost:9090       ║
+# ║  Metrics      →  http://localhost:8001/metrics║
+# ╚══════════════════════════════════════════════╝</code></pre>
+
+  <h4>4. Start the Order Producer (in a new terminal)</h4>
+  <pre><code>cd data-plane
+java -jar target/data-plane-1.0.0.jar producer
+# Produces 5 orders/second to the 'orders' topic</code></pre>
+
+  <h4>5. Build and start the Go Control Plane</h4>
+  <pre><code>cd control-plane
+go build -o bin/control-plane ./...
+DATA_PLANE_URL=http://localhost:9090 ./bin/control-plane
+# Control plane on :8000</code></pre>
+
+  <h4>6. Register an Iceberg pipeline</h4>
+  <pre><code>curl -s -X POST http://localhost:8000/api/v1/tables \
+  -H 'Content-Type: application/json' \
+  -d '{"topic":"orders","table_name":"orders"}' | python -m json.tool</code></pre>
+
+  <h4>7. Verify data flowing</h4>
+  <pre><code># Check pipeline status
+curl -s http://localhost:8000/api/v1/tables | python -m json.tool
+
+# Check Iceberg files created
+ls warehouse/streamlake/orders/data/
+
+# Open Kafka UI to browse topics
+start http://localhost:8080</code></pre>
+
+  <h4>8. Start Kafka Streams metrics (optional, new terminal)</h4>
+  <pre><code>cd data-plane
+java -jar target/data-plane-1.0.0.jar streams</code></pre>
+
+  <h3>Environment Variables</h3>
+  <div class="tbl-wrap">
+    <table>
+      <tr><th>Variable</th><th>Default</th><th>Service</th><th>Description</th></tr>
+      <tr><td>KAFKA_BOOTSTRAP_SERVERS</td><td>localhost:9092</td><td>Java</td><td>Kafka broker address</td></tr>
+      <tr><td>WAREHOUSE_PATH</td><td>warehouse</td><td>Java</td><td>Root path for Iceberg HadoopCatalog</td></tr>
+      <tr><td>DATA_PLANE_PORT</td><td>9090</td><td>Java</td><td>Data plane HTTP port</td></tr>
+      <tr><td>METRICS_PORT</td><td>8001</td><td>Java</td><td>Prometheus metrics port</td></tr>
+      <tr><td>PRODUCER_RATE</td><td>5.0</td><td>Java</td><td>Events per second from OrderProducer</td></tr>
+      <tr><td>PRODUCER_COUNT</td><td>0 (infinite)</td><td>Java</td><td>Total events to produce (0=run forever)</td></tr>
+      <tr><td>DATA_PLANE_URL</td><td>http://localhost:9090</td><td>Go</td><td>Java data plane base URL</td></tr>
+      <tr><td>PORT</td><td>8000</td><td>Go</td><td>Control plane HTTP port</td></tr>
+      <tr><td>DB_PATH</td><td>streamlake.db</td><td>Go</td><td>SQLite database file path</td></tr>
+    </table>
+  </div>
+
+  <h3>Reset / Clean state</h3>
+  <pre><code>docker compose down -v
+rm -rf warehouse/ streamlake.db
+# Then restart from Step 1</code></pre>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     11 — AWS DEPLOYMENT
+═══════════════════════════════════════════════════════════════════ -->
+<section id="aws">
+  <h2><span class="section-num">11</span> AWS Production Deployment</h2>
+  <p class="lead">
+    Moving StreamLake from local Docker to AWS requires replacing each local component
+    with the appropriate AWS managed service. The application code changes are minimal —
+    this is by design (the catalog abstraction layer in Iceberg means swapping a one-liner).
+  </p>
+
+  <h3>Component Mapping: Local → AWS</h3>
+  <div class="tbl-wrap">
+    <table>
+      <tr><th>Local Component</th><th>AWS Equivalent</th><th>Why this AWS service</th></tr>
+      <tr>
+        <td>Confluent Docker (broker)</td>
+        <td><strong>Amazon MSK</strong> (Managed Streaming for Apache Kafka)</td>
+        <td>Fully managed Kafka; same Apache Kafka API; multi-AZ; auto storage scaling; no broker ops</td>
+      </tr>
+      <tr>
+        <td>Schema Registry (Docker)</td>
+        <td><strong>Confluent Cloud Schema Registry</strong> or <strong>AWS Glue Schema Registry</strong></td>
+        <td>Glue Schema Registry is free with Glue; supports Avro/JSON/Protobuf; integrates with MSK natively</td>
+      </tr>
+      <tr>
+        <td>Kafka Connect (Docker)</td>
+        <td><strong>MSK Connect</strong></td>
+        <td>Serverless Kafka Connect workers; auto-scaling; no JVM management; supports all Confluent Hub connectors</td>
+      </tr>
+      <tr>
+        <td>Iceberg HadoopCatalog (local FS)</td>
+        <td><strong>AWS Glue Data Catalog</strong> + <strong>Amazon S3</strong></td>
+        <td>S3 stores Parquet files; Glue Catalog stores table metadata; any engine (Athena, Spark, Flink) can query directly</td>
+      </tr>
+      <tr>
+        <td>SQLite (streamlake.db)</td>
+        <td><strong>Amazon RDS Aurora Serverless v2 (PostgreSQL)</strong> or <strong>Amazon DynamoDB</strong></td>
+        <td>Aurora: drop-in PostgreSQL; Serverless v2 scales to zero; DynamoDB: simpler key-value if no complex queries needed</td>
+      </tr>
+      <tr>
+        <td>Java data-plane process</td>
+        <td><strong>Amazon ECS Fargate</strong> (or <strong>EKS</strong>)</td>
+        <td>Fargate: serverless containers, no EC2 management; one task per TableWorker group; auto-restart on failure</td>
+      </tr>
+      <tr>
+        <td>Go control-plane process</td>
+        <td><strong>Amazon ECS Fargate</strong> + <strong>Application Load Balancer</strong></td>
+        <td>ALB handles TLS termination, health checks, and routing; Fargate keeps it stateless</td>
+      </tr>
+      <tr>
+        <td>Prometheus (:8001)</td>
+        <td><strong>Amazon Managed Prometheus (AMP)</strong> + <strong>Amazon Managed Grafana</strong></td>
+        <td>Fully managed Prometheus/Grafana; remote_write from containers to AMP workspace; zero ops</td>
+      </tr>
+      <tr>
+        <td>Parquet files (warehouse/)</td>
+        <td><strong>Amazon S3</strong></td>
+        <td>Infinite scale; 11 9s durability; Intelligent-Tiering for cost; direct querying via Athena/Trino</td>
+      </tr>
+    </table>
+  </div>
+
+  <h3>AWS Architecture Diagram</h3>
+  <div class="aws-layer">
+    <div class="aws-layer-title">🌐 Networking — VPC / Private Subnets / Security Groups</div>
+    <div class="aws-service-row">
+      <div class="aws-svc"><span class="svc-icon">🔒</span> VPC (10.0.0.0/16)</div>
+      <div class="aws-svc"><span class="svc-icon">🔀</span> Application Load Balancer</div>
+      <div class="aws-svc"><span class="svc-icon">🛡️</span> Security Groups (MSK, ECS, RDS)</div>
+      <div class="aws-svc"><span class="svc-icon">🔑</span> AWS Secrets Manager (credentials)</div>
+    </div>
+  </div>
+  <div class="aws-layer">
+    <div class="aws-layer-title">📡 Streaming — Kafka Backbone</div>
+    <div class="aws-service-row">
+      <div class="aws-svc"><span class="svc-icon">📨</span> Amazon MSK (3-broker, multi-AZ)</div>
+      <div class="aws-svc"><span class="svc-icon">📋</span> AWS Glue Schema Registry</div>
+      <div class="aws-svc"><span class="svc-icon">🔌</span> MSK Connect (sink connectors)</div>
+    </div>
+  </div>
+  <div class="aws-layer">
+    <div class="aws-layer-title">⚙️ Compute — ECS Fargate</div>
+    <div class="aws-service-row">
+      <div class="aws-svc"><span class="svc-icon">☕</span> Data Plane Service (Java, :9090)</div>
+      <div class="aws-svc"><span class="svc-icon">🐹</span> Control Plane Service (Go, :8000)</div>
+      <div class="aws-svc"><span class="svc-icon">🏭</span> Producer Service (Java, event gen)</div>
+      <div class="aws-svc"><span class="svc-icon">🌊</span> Streams Service (Java, KStreams)</div>
+    </div>
+  </div>
+  <div class="aws-layer">
+    <div class="aws-layer-title">🗄️ Storage — Data &amp; State</div>
+    <div class="aws-service-row">
+      <div class="aws-svc"><span class="svc-icon">🪣</span> S3 Bucket (Iceberg warehouse)</div>
+      <div class="aws-svc"><span class="svc-icon">📚</span> AWS Glue Data Catalog (table metadata)</div>
+      <div class="aws-svc"><span class="svc-icon">🗃️</span> Aurora Serverless v2 (control-plane state)</div>
+    </div>
+  </div>
+  <div class="aws-layer">
+    <div class="aws-layer-title">🔍 Query Engines (read Iceberg directly)</div>
+    <div class="aws-service-row">
+      <div class="aws-svc"><span class="svc-icon">🔎</span> Amazon Athena (serverless SQL on S3)</div>
+      <div class="aws-svc"><span class="svc-icon">⚡</span> Amazon EMR (Spark/Flink at scale)</div>
+      <div class="aws-svc"><span class="svc-icon">❄️</span> Snowflake / Databricks (via Iceberg REST catalog)</div>
+    </div>
+  </div>
+  <div class="aws-layer">
+    <div class="aws-layer-title">📊 Observability</div>
+    <div class="aws-service-row">
+      <div class="aws-svc"><span class="svc-icon">📈</span> Amazon Managed Prometheus (AMP)</div>
+      <div class="aws-svc"><span class="svc-icon">📉</span> Amazon Managed Grafana</div>
+      <div class="aws-svc"><span class="svc-icon">📝</span> CloudWatch Logs (container stdout)</div>
+      <div class="aws-svc"><span class="svc-icon">🚨</span> CloudWatch Alarms (consumer lag, error rate)</div>
+    </div>
+  </div>
+
+  <h3>Code Changes Required for AWS</h3>
+
+  <h4>1. Swap HadoopCatalog → GlueCatalog (one file)</h4>
+  <div class="code-label">IcebergTableWriter.java — before (local)</div>
+  <pre><code>import org.apache.iceberg.hadoop.HadoopCatalog;
+catalog = new HadoopCatalog(conf, warehousePath);
+// warehousePath = "warehouse/"  ← local filesystem</code></pre>
+  <div class="code-label">IcebergTableWriter.java — after (AWS)</div>
+  <pre><code>import org.apache.iceberg.aws.glue.GlueCatalog;
+catalog = new GlueCatalog();
+catalog.initialize("glue", Map.of(
+    CatalogProperties.WAREHOUSE_LOCATION, "s3://my-bucket/warehouse/",
+    CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.aws.s3.S3FileIO"
+));
+// Everything else — append(), schema, commit — is IDENTICAL</code></pre>
+
+  <h4>2. Add GlueCatalog dependency to pom.xml</h4>
+  <pre><code>&lt;dependency&gt;
+    &lt;groupId&gt;org.apache.iceberg&lt;/groupId&gt;
+    &lt;artifactId&gt;iceberg-aws&lt;/artifactId&gt;
+    &lt;version&gt;${iceberg.version}&lt;/version&gt;
+&lt;/dependency&gt;
+&lt;dependency&gt;
+    &lt;groupId&gt;software.amazon.awssdk&lt;/groupId&gt;
+    &lt;artifactId&gt;glue&lt;/artifactId&gt;
+    &lt;version&gt;2.25.0&lt;/version&gt;
+&lt;/dependency&gt;
+&lt;dependency&gt;
+    &lt;groupId&gt;software.amazon.awssdk&lt;/groupId&gt;
+    &lt;artifactId&gt;s3&lt;/artifactId&gt;
+    &lt;version&gt;2.25.0&lt;/version&gt;
+&lt;/dependency&gt;</code></pre>
+
+  <h4>3. Swap SQLite → PostgreSQL in Go control plane</h4>
+  <div class="code-label">store/sqlite.go — change driver and DSN</div>
+  <pre><code>// Before (local):
+import _ "github.com/mattn/go-sqlite3"
+dsn := path + "?_journal_mode=WAL&_busy_timeout=5000"
+conn, _ := sql.Open("sqlite3", dsn)
+
+// After (AWS — Aurora Serverless PostgreSQL):
+import _ "github.com/lib/pq"
+dsn := os.Getenv("DATABASE_URL")  // postgresql://user:pass@aurora-endpoint/streamlake
+conn, _ := sql.Open("postgres", dsn)
+// DDL needs minor tweaks: CURRENT_TIMESTAMP → NOW(), TEXT → VARCHAR, etc.</code></pre>
+
+  <h4>4. Kafka bootstrap servers</h4>
+  <pre><code># Set via environment variable — no code change
+KAFKA_BOOTSTRAP_SERVERS=b-1.my-cluster.kafka.us-east-1.amazonaws.com:9092,b-2...
+
+# MSK with IAM authentication (SASL_SSL):
+props.put("security.protocol", "SASL_SSL");
+props.put("sasl.mechanism", "AWS_MSK_IAM");
+props.put("sasl.jaas.config", "software.amazon.msk.auth.iam.IAMLoginModule required;");
+props.put("sasl.client.callback.handler.class",
+          "software.amazon.msk.auth.iam.IAMClientCallbackHandler");</code></pre>
+
+  <h3>ECS Task Definitions (concept)</h3>
+  <pre><code># docker-compose equivalent for ECS (simplified)
+# Each service runs as a Fargate task
+
+data-plane:
+  image: &lt;ecr-repo&gt;/streamlake-data-plane:latest
+  cpu: 1024       # 1 vCPU
+  memory: 2048    # 2 GB RAM (JVM)
+  environment:
+    KAFKA_BOOTSTRAP_SERVERS: ${MSK_BROKERS}
+    WAREHOUSE_PATH: s3://my-bucket/warehouse/
+  ports: ["9090:9090", "8001:8001"]
+  healthCheck: GET /health
+
+control-plane:
+  image: &lt;ecr-repo&gt;/streamlake-control-plane:latest
+  cpu: 256        # 0.25 vCPU (Go is tiny)
+  memory: 512     # 512 MB
+  environment:
+    DATA_PLANE_URL: http://data-plane.internal:9090
+    DATABASE_URL: ${AURORA_URL}
+  ports: ["8000:8000"]
+  healthCheck: GET /health</code></pre>
+
+  <h3>Dockerfile — Data Plane (Java)</h3>
+  <pre><code>FROM eclipse-temurin:21-jre-alpine AS runtime
+WORKDIR /app
+COPY data-plane/target/data-plane-1.0.0.jar app.jar
+# Non-root user for security
+RUN addgroup -S streamlake &amp;&amp; adduser -S streamlake -G streamlake
+USER streamlake
+EXPOSE 9090 8001
+ENTRYPOINT ["java", "-XX:+UseContainerSupport", \
+            "-XX:MaxRAMPercentage=75.0", \
+            "-jar", "app.jar", "server"]</code></pre>
+
+  <h3>Dockerfile — Control Plane (Go)</h3>
+  <pre><code>FROM golang:1.22-alpine AS builder
+WORKDIR /app
+COPY control-plane/ .
+RUN go build -o bin/control-plane ./...
+
+FROM alpine:3.19 AS runtime
+WORKDIR /app
+COPY --from=builder /app/bin/control-plane .
+RUN addgroup -S streamlake &amp;&amp; adduser -S streamlake -G streamlake
+USER streamlake
+EXPOSE 8000
+ENTRYPOINT ["./control-plane"]</code></pre>
+
+  <h3>Infrastructure as Code (Terraform concept)</h3>
+  <pre><code># Key Terraform resources needed:
+
+# 1. MSK Cluster
+resource "aws_msk_cluster" "streamlake" {
+  cluster_name           = "streamlake"
+  kafka_version          = "3.7.0"
+  number_of_broker_nodes = 3
+  broker_node_group_info {
+    instance_type   = "kafka.m5.large"
+    storage_info { ebs_storage_info { volume_size = 1000 } }
+  }
+}
+
+# 2. S3 Bucket for Iceberg
+resource "aws_s3_bucket" "warehouse" {
+  bucket = "streamlake-warehouse-${data.aws_account_id.current.id}"
+}
+
+# 3. Glue Database
+resource "aws_glue_catalog_database" "streamlake" {
+  name = "streamlake"
+}
+
+# 4. ECS Cluster + Services (one per application component)
+resource "aws_ecs_cluster" "streamlake" { name = "streamlake" }
+
+# 5. Aurora Serverless v2 for control plane state
+resource "aws_rds_cluster" "control_plane" {
+  engine_mode    = "provisioned"
+  engine_version = "16.1"
+  serverlessv2_scaling_configuration {
+    min_capacity = 0.5
+    max_capacity = 2.0
+  }
+}</code></pre>
+
+  <h3>Cost Estimate (low-traffic, always-on)</h3>
+  <div class="tbl-wrap">
+    <table>
+      <tr><th>Service</th><th>Config</th><th>Est. Monthly Cost</th></tr>
+      <tr><td>Amazon MSK</td><td>3 × kafka.m5.large, 1TB EBS each</td><td>~$430/mo</td></tr>
+      <tr><td>ECS Fargate</td><td>Data plane: 1 vCPU/2GB × 2 tasks; Control plane: 0.25 vCPU/512MB</td><td>~$70/mo</td></tr>
+      <tr><td>S3</td><td>100GB Parquet storage + requests</td><td>~$3/mo</td></tr>
+      <tr><td>Glue Data Catalog</td><td>1M objects</td><td>~$1/mo</td></tr>
+      <tr><td>Aurora Serverless v2</td><td>0.5–2 ACU, ~8h/day active</td><td>~$30/mo</td></tr>
+      <tr><td>ALB</td><td>1 load balancer</td><td>~$20/mo</td></tr>
+      <tr><td>Amazon AMP + AMG</td><td>metrics ingest + dashboards</td><td>~$10/mo</td></tr>
+      <tr><td colspan="2"><strong>Total estimate</strong></td><td><strong>~$560/mo</strong></td></tr>
+    </table>
+  </div>
+  <div class="callout callout-orange">
+    <div class="callout-title">Cost optimization</div>
+    MSK is the dominant cost. For dev/test, use a single kafka.t3.small broker (~$50/mo) or
+    Confluent Cloud Serverless (pay-per-message, ~$0/mo idle). For production with high
+    throughput, the MSK cost amortizes well vs. self-managed Kafka on EC2.
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     12 — OBSERVABILITY
+═══════════════════════════════════════════════════════════════════ -->
+<section id="monitoring">
+  <h2><span class="section-num">12</span> Observability &amp; Monitoring</h2>
+
+  <h3>Key metrics to monitor</h3>
+  <div class="tbl-wrap">
+    <table>
+      <tr><th>Metric</th><th>Source</th><th>Alert threshold</th><th>Meaning</th></tr>
+      <tr>
+        <td>Consumer lag (records behind)</td>
+        <td>Kafka broker / MSK</td>
+        <td>&gt; 10,000 records sustained for 5 min</td>
+        <td>Workers can't keep up with producer rate; add worker instances or partitions</td>
+      </tr>
+      <tr>
+        <td>records_written counter</td>
+        <td>Java TableWorker</td>
+        <td>Stale (no increase for 10 min while lag &gt; 0)</td>
+        <td>Worker crashed; watchdog should restart; check error status via API</td>
+      </tr>
+      <tr>
+        <td>JVM heap usage %</td>
+        <td>Prometheus Java agent</td>
+        <td>&gt; 85% sustained</td>
+        <td>Increase container memory or tune batch size</td>
+      </tr>
+      <tr>
+        <td>GC pause time (p99)</td>
+        <td>Prometheus Java agent</td>
+        <td>&gt; 500ms</td>
+        <td>Indicates memory pressure during large batch processing</td>
+      </tr>
+      <tr>
+        <td>HTTP error rate (5xx)</td>
+        <td>Go chi middleware</td>
+        <td>&gt; 1% over 5 min</td>
+        <td>Data-plane unreachable or overloaded</td>
+      </tr>
+      <tr>
+        <td>Iceberg snapshot commits/min</td>
+        <td>Custom counter in IcebergTableWriter</td>
+        <td>&lt; 1 commit/5 min while lag &gt; 0</td>
+        <td>Iceberg write path broken; check warehouse path permissions</td>
+      </tr>
+    </table>
+  </div>
+
+  <h3>Accessing metrics locally</h3>
+  <pre><code># Java data plane metrics (JVM + custom)
+curl http://localhost:8001/metrics | grep streamlake
+
+# Go control plane metrics
+curl http://localhost:8000/metrics
+
+# Kafka consumer group lag
+docker exec broker kafka-consumer-groups \
+  --bootstrap-server localhost:9092 \
+  --describe --group streamlake-&lt;worker-id&gt;</code></pre>
+
+  <h3>Log levels</h3>
+  <p>The Java data plane uses Logback (<span class="inline-code">logback.xml</span>).
+    Key log statements to watch:</p>
+  <ul>
+    <li><span class="inline-code">Flushed N records in Xms (total: Y)</span> — healthy write path</li>
+    <li><span class="inline-code">Rebalance: flushing N records before partition revocation</span> — normal rebalance, no data loss</li>
+    <li><span class="inline-code">commitSync retriable (attempt N), backing off Xms</span> — transient broker issue, retrying</li>
+    <li><span class="inline-code">Worker in error state — restarting (attempt N/5)</span> — watchdog triggered, investigate root cause</li>
+    <li><span class="inline-code">Max restarts (5) reached — giving up</span> — manual intervention required</li>
+  </ul>
+</section>
+
+<!-- FOOTER -->
+<section style="background:var(--gray50); border-top:none; padding:32px 0 24px;">
+  <p style="text-align:center; color:#94a3b8; font-size:13px;">
+    StreamLake System Design Document &nbsp;|&nbsp;
+    Java 21 · Go 1.22 · Kafka 3.7 · Iceberg 1.5 · Confluent Platform 7.6 &nbsp;|&nbsp;
+    Prepared for Confluent/IBM Tableflow Team Interview
+  </p>
+</section>
+
+</div><!-- /container -->
+</body>
+</html>

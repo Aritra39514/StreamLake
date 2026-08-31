@@ -1,0 +1,14 @@
+<configuration>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS}  %-30logger{30}  %-5level  %msg%n</pattern>
+        </encoder>
+    </appender>
+    <root level="INFO">
+        <appender-ref ref="STDOUT"/>
+    </root>
+    <!-- Silence noisy Hadoop / Kafka internal loggers -->
+    <logger name="org.apache.hadoop" level="WARN"/>
+    <logger name="org.apache.kafka"  level="WARN"/>
+    <logger name="io.confluent"      level="WARN"/>
+</configuration>

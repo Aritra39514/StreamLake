@@ -1,0 +1,16 @@
+{
+  "namespace": "com.streamlake",
+  "type": "record",
+  "name": "Order",
+  "doc": "E-commerce order event — published to the 'orders' Kafka topic",
+  "fields": [
+    {"name": "order_id",    "type": "string"},
+    {"name": "customer_id", "type": "string"},
+    {"name": "product_id",  "type": "string"},
+    {"name": "quantity",    "type": "int"},
+    {"name": "price",       "type": "double"},
+    {"name": "status",      "type": {"type": "enum", "name": "OrderStatus",
+                                      "symbols": ["PLACED","CONFIRMED","SHIPPED","DELIVERED","CANCELLED"]}},
+    {"name": "event_time",  "type": {"type": "long", "logicalType": "timestamp-millis"}}
+  ]
+}
